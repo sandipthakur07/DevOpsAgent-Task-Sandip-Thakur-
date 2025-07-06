@@ -1,0 +1,87 @@
+# Download the latest Loki binary
+curl -O -L "https://github.com/grafana/loki/releases/latest/download/loki-linux-amd64.zip"
+
+# Extract the binary
+unzip loki-linux-amd64.zip
+
+# Make it executable and move to system path
+chmod +x loki-linux-amd64
+sudo mv loki-linux-amd64 /usr/local/bin/loki
+#Create a basic configuration file
+# Create config directory
+sudo mkdir -p /etc/loki
+
+# Create a basic config file
+sudo tee /etc/loki/loki.yaml > /dev/null <<EOF
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /tmp/loki
+  storage:
+    filesystem:
+      chunks_directory: /tmp/loki/chunks
+      rules_directory: /tmp/loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://localhost:9093
+EOF
+#Create Systemd Service
+sudo tee /etc/systemd/system/loki.service > /dev/null <<EOF
+[Unit]
+Description=Loki log aggregation system
+After=network.target
+
+[Service]
+Type=simple
+User=loki
+ExecStart=/usr/local/bin/loki -config.file=/etc/loki/loki.yaml
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+#Create a dedicated user for Loki
+sudo useradd --system --shell /bin/false loki
+sudo chown -R loki:loki /etc/loki
+sudo mkdir -p /tmp/loki
+sudo chown -R loki:loki /tmp/loki
+#Start and Enable Loki
+# Reload systemd and start Loki
+sudo systemctl daemon-reload
+sudo systemctl start loki
+sudo systemctl enable loki
+
+# Check status
+sudo systemctl status loki
+#Verify Installation
+# Check if Loki is listening on port 3100
+curl http://localhost:3100/ready
+
+# Check Loki metrics
+curl http://localhost:3100/metrics
