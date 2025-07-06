@@ -10,4 +10,3 @@ sudo apt install apache2 -y
 sudo systemctl enable apache2 && sudo systemctl start apache2
 sudo systemctl status apache2
 touch /etc/apache2/sites-available/jenkins.conf
-sudo cat /var/lib/jenkins/secrets/initialAdminPassword
